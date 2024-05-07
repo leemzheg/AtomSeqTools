@@ -1,7 +1,8 @@
 # AtomSeqTools
 Run AtomSeq Target Pipeline Toolkit
 
-Mode one(call variant or cnv or msi):
+##Mode one(call variant or cnv or msi):
+```
 1) only variant calling:
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
@@ -11,6 +12,9 @@ python3 AtomSeqTools.py \
 -config configure_file \
 -bed T27_DNA_25geneAndMSI_Primer_V1.1.bed \
 -variant -sample-type Tissue
+```
+
+```
 2) only cnv analysis:
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
@@ -20,6 +24,9 @@ python3 AtomSeqTools.py \
 -config configure_file \
 -bed T27_DNA_25geneAndMSI_Primer_V1.1.bed \
 -cnv -cnv-baseline CNV_baseline_file
+```
+
+```
 3) only msi analysis:
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
@@ -29,6 +36,9 @@ python3 AtomSeqTools.py \
 -config configure_file \
 -bed T27_DNA_25geneAndMSI_Primer_V1.1.bed \
 -msi -mis-baseline MSI_baseline_file
+```
+
+```
 4) variant, cnv and msi can be used in combination:
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
@@ -38,8 +48,10 @@ python3 AtomSeqTools.py \
 -config configure_file \
 -bed T27_DNA_25geneAndMSI_Primer_V1.1.bed \
 -variant -sample-type Tissue -cnv -cnv-baseline CNV_baseline_file -msi -mis-baseline MSI_baseline_file
+```
 
-Mode two(methylation analysis):
+##Mode two(methylation analysis):
+```
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
 -fq-dir/PATH/to/Rawdata  \
@@ -48,8 +60,10 @@ python3 AtomSeqTools.py \
 -config configure_file \
 -bed M5_LC_CRC_Methylation_Primer_V2.3.bed \
 -meth
+```
 
-Mode three(fusion analysis):
+##Mode three(fusion analysis):
+```
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
 -fq-dir /PATH/to/Rawdata \
@@ -58,8 +72,11 @@ python3 AtomSeqTools.py \
 -config configure_file \
 -bed T12_RNA_15gene_Primer_V2.0.bed \
 -fusion
+```
 
-Help Message:
+##Help Message:
+```
+python3 AtomSeqTools.py -h
 usage: AtomSeqTools.py [-h] -image IMAGE -fq-dir PATH -fq-prefix STR [STR ...] -outdir PATH -config STR -bed STR
                        [-variant] [-sample-type STR] [-cnv] [-cnv-baseline STR] [-msi] [-msi-baseline STR]
                        [-meth] [-fusion] [-threads INT] [-data-to-analyse FLOAT] [-supporting-reads INT]
@@ -111,4 +128,5 @@ The bed file of primers should contain at least first six columns(delimited by t
 4. Primer ID;
 5. Primer length;
 6. Targeted strand (+/-).
+```
 
