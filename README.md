@@ -1,9 +1,10 @@
 # AtomSeqTools
 Run AtomSeq Target Pipeline Toolkit
 
-##Mode one(call variant or cnv or msi):
+## Mode one(call variant or cnv or msi):
+
+### 1) only variant calling:
 ```
-1) only variant calling:
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
 -fq-dir /PATH/to/Rawdata \
@@ -13,9 +14,8 @@ python3 AtomSeqTools.py \
 -bed T27_DNA_25geneAndMSI_Primer_V1.1.bed \
 -variant -sample-type Tissue
 ```
-
+### 2) only cnv analysis:
 ```
-2) only cnv analysis:
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
 -fq-dir /PATH/to/Rawdata \
@@ -25,9 +25,8 @@ python3 AtomSeqTools.py \
 -bed T27_DNA_25geneAndMSI_Primer_V1.1.bed \
 -cnv -cnv-baseline CNV_baseline_file
 ```
-
+### 3) only msi analysis:
 ```
-3) only msi analysis:
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
 -fq-dir /PATH/to/Rawdata \
@@ -37,9 +36,8 @@ python3 AtomSeqTools.py \
 -bed T27_DNA_25geneAndMSI_Primer_V1.1.bed \
 -msi -mis-baseline MSI_baseline_file
 ```
-
+### 4) variant, cnv and msi can be used in combination:
 ```
-4) variant, cnv and msi can be used in combination:
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
 -fq-dir /PATH/to/Rawdata \
@@ -49,8 +47,7 @@ python3 AtomSeqTools.py \
 -bed T27_DNA_25geneAndMSI_Primer_V1.1.bed \
 -variant -sample-type Tissue -cnv -cnv-baseline CNV_baseline_file -msi -mis-baseline MSI_baseline_file
 ```
-
-##Mode two(methylation analysis):
+## Mode two(methylation analysis):
 ```
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
@@ -61,8 +58,7 @@ python3 AtomSeqTools.py \
 -bed M5_LC_CRC_Methylation_Primer_V2.3.bed \
 -meth
 ```
-
-##Mode three(fusion analysis):
+## Mode three(fusion analysis):
 ```
 python3 AtomSeqTools.py \
 -image atomSeqTools_images_v2.1.sif \
@@ -74,7 +70,7 @@ python3 AtomSeqTools.py \
 -fusion
 ```
 
-##Help Message:
+## Help Message:
 ```
 python3 AtomSeqTools.py -h
 usage: AtomSeqTools.py [-h] -image IMAGE -fq-dir PATH -fq-prefix STR [STR ...] -outdir PATH -config STR -bed STR
