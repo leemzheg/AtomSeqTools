@@ -6,7 +6,7 @@ Run AtomSeq Target Pipeline Toolkit
 - Singularity has been installed, [singularity user guide](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html#quick-installation-steps) 
 - AtomSeqTools's database has been downloaded
 - AtomSeqTools's image has been downloaded:
-```singularity build AtomSeqTools_v1.9.sif docker://leemzheng/atomseqtools:v1.9```
+```singularity build AtomSeqTools_image_v2.1.sif docker://leemzheng/atomseqtools:v1.9```
 
 ## Mode one(call variant or cnv or msi):
 
