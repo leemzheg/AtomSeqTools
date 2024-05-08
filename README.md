@@ -14,6 +14,7 @@ singularity build AtomSeqTools_image_v2.1.sif docker://leemzheng/atomseqtools:v2
 Hg38_Fasta_Path=/PATH/to/GRCh38/hg38.fasta
 Bwa_Index_Path=/PATH/to/BWA_index/hg38
 Bismark_Index_Path=/PATH/to/GRCh38/
+Fusion_data_library=/PATH/to/genome_lib_dir
 ```
 Note: perpare bismark hg38 index, see [User Guide](https://felixkrueger.github.io/Bismark/bismark/genome_preparation/)
 
@@ -141,4 +142,6 @@ The bed file of primers should contain at least first six columns(delimited by t
 5. Primer length;
 6. Targeted strand (+/-).
 ```
-
+## Contacts
+If you have any questions or feedback, please contact us at: \
+**Email:** mengzheng-li@ebiotron.com
