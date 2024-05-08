@@ -7,14 +7,15 @@ Run AtomSeq Target Pipeline Toolkit
 - AtomSeqTools's database has been downloaded
 - AtomSeqTools's image has been downloaded, command:
 ```
-singularity build AtomSeqTools_image_v2.1.sif docker://leemzheng/atomseqtools:v2.1
+singularity build AtomSeqTools_image_v2.3.sif docker://leemzheng/atomseqtools:v2.3
 ```
 - Need a config file, fill it out like this:
 ```
 Hg38_Fasta_Path=/PATH/to/GRCh38/hg38.fasta
 Bwa_Index_Path=/PATH/to/BWA_index/hg38
 Bismark_Index_Path=/PATH/to/GRCh38/
-Fusion_data_library=/PATH/to/genome_lib_dir
+Fusion_data_library=/PATH/to/fusion_database_dir
+Variant_library=/PATH/to/variant_database_dir
 ```
 Note: perpare bismark hg38 index, see [User Guide](https://felixkrueger.github.io/Bismark/bismark/genome_preparation/)
 
@@ -23,7 +24,7 @@ Note: perpare bismark hg38 index, see [User Guide](https://felixkrueger.github.i
 ### 1) only variant calling:
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.1.sif \
+-image atomSeqTools_images_v2.3.sif \
 -fq-dir /PATH/to/Rawdata \
 -fq-prefix 0320-ZCZ-T27-A1 0327-ZLY-T27-A1 \
 -outdir /PATH/to/Output \
@@ -34,7 +35,7 @@ python3 AtomSeqTools.py \
 ### 2) only cnv analysis:
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.1.sif \
+-image atomSeqTools_images_v2.3.sif \
 -fq-dir /PATH/to/Rawdata \
 -fq-prefix 0320-ZCZ-T27-A1 0327-ZLY-T27-A1 \
 -outdir /PATH/to/Output \
@@ -45,7 +46,7 @@ python3 AtomSeqTools.py \
 ### 3) only msi analysis:
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.1.sif \
+-image atomSeqTools_images_v2.3.sif \
 -fq-dir /PATH/to/Rawdata \
 -fq-prefix 0320-ZCZ-T27-A1 0327-ZLY-T27-A1 \
 -outdir /PATH/to/Output \
@@ -56,7 +57,7 @@ python3 AtomSeqTools.py \
 ### 4) variant, cnv and msi can be used in combination:
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.1.sif \
+-image atomSeqTools_images_v2.3.sif \
 -fq-dir /PATH/to/Rawdata \
 -fq-prefix 0320-ZCZ-T27-A1 0327-ZLY-T27-A1 \
 -outdir /PATH/to/Output \
@@ -67,7 +68,7 @@ python3 AtomSeqTools.py \
 ## Mode two(methylation analysis):
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.1.sif \
+-image atomSeqTools_images_v2.3.sif \
 -fq-dir/PATH/to/Rawdata  \
 -fq-prefix 0408-V17-2-M5-A1 0408-V17-5-M5-A1 \
 -outdir /PATH/to/Output \
@@ -78,7 +79,7 @@ python3 AtomSeqTools.py \
 ## Mode three(fusion analysis):
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.1.sif \
+-image atomSeqTools_images_v2.3.sif \
 -fq-dir /PATH/to/Rawdata \
 -fq-prefix 0320-ZJQ-T12-A1 \
 -outdir /PATH/to/Output \
