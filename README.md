@@ -1,6 +1,13 @@
 # AtomSeqTools
 Run AtomSeq Target Pipeline Toolkit
 
+## Requirements
+- At least 16 cores CPU and 40G memory
+- Singularity has been installed, [singularity user guide](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html#quick-installation-steps) 
+- AtomSeqTools's database has been downloaded
+- AtomSeqTools's image has been downloaded:
+```singularity build AtomSeqTools_v1.9.sif docker://leemzheng/atomseqtools:v1.9```
+
 ## Mode one(call variant or cnv or msi):
 
 ### 1) only variant calling:
