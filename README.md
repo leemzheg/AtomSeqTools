@@ -15,6 +15,7 @@ Hg38_Fasta_Path=/PATH/to/GRCh38/hg38.fasta
 Bwa_Index_Path=/PATH/to/BWA_index/hg38
 Bismark_Index_Path=/PATH/to/GRCh38/
 ```
+Note: perpare bismark hg38 index, see [User Guide](https://felixkrueger.github.io/Bismark/bismark/genome_preparation/)
 
 ## Mode one(call variant or cnv or msi):
 
