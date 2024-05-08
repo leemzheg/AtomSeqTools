@@ -5,8 +5,16 @@ Run AtomSeq Target Pipeline Toolkit
 - At least 16 cores CPU and 40G memory
 - Singularity has been installed, [singularity user guide](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html#quick-installation-steps) 
 - AtomSeqTools's database has been downloaded
-- AtomSeqTools's image has been downloaded:
-```singularity build AtomSeqTools_image_v2.1.sif docker://leemzheng/atomseqtools:v1.9```
+- AtomSeqTools's image has been downloaded, command:
+```
+singularity build AtomSeqTools_image_v2.1.sif docker://leemzheng/atomseqtools:v2.1
+```
+- Need a config file, fill it out like this:
+```
+Hg38_Fasta_Path=/PATH/to/GRCh38/hg38.fasta
+Bwa_Index_Path=/PATH/to/BWA_index/hg38
+Bismark_Index_Path=/PATH/to/GRCh38/
+```
 
 ## Mode one(call variant or cnv or msi):
 
