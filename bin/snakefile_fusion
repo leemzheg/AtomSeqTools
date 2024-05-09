@@ -1,0 +1,583 @@
+SAMPLES = config['samples']
+
+rule all:
+    input:
+             '.genomeLoad/Remove.completed',
+             expand('{sample}/result/{sample}.RNA_reads_summary.xls',
+             sample=SAMPLES),
+             expand('{sample}/result/{sample}.fusion_visual.html',
+             sample=SAMPLES),
+             expand('{sample}/result/{sample}.fusion_frequency.xls',
+             sample=SAMPLES),
+             expand('{sample}/result/{sample}.primer_frequency.xls',
+             sample=SAMPLES),
+             expand('{sample}/result/{sample}.fusion_filter.xls',
+             sample=SAMPLES)
+
+rule fastp:
+    input:   R1 = lambda wildcards: f"{config['samples'][wildcards.sample]['directory']}/{config['samples'][wildcards.sample]['prefix']}{config['samples'][wildcards.sample]['R1_suffix']}",
+             R2 = lambda wildcards: f"{config['samples'][wildcards.sample]['directory']}/{config['samples'][wildcards.sample]['prefix']}{config['samples'][wildcards.sample]['R2_suffix']}"
+    output:  R1 = '{sample}/01.fastp/{sample}_CleanReads_1.fq.gz',
+             R2 = '{sample}/01.fastp/{sample}_CleanReads_2.fq.gz',
+             json = '{sample}/01.fastp/{sample}_fastp.json',
+             html = '{sample}/01.fastp/{sample}_fastp.html'
+    params:  fastp_path = config['fastp']['path'],
+             adapter_sequence = config['fastp']['adapter_sequence'],
+             adapter_sequence_r2 = config['fastp']['adapter_sequence_r2'], 
+             qualified_quality = config['fastp']['qualified_quality'], 
+             unqualified_percent = config['fastp']['unqualified_percent'], 
+             n_base_limit = config['fastp']['n_base_limit'],
+             length_required= config['fastp']['length_required'],
+             umi_loc = config['fastp']['umi_loc'],
+             umi_len = config['fastp']['umi_len'],
+             umi_prefix = config['fastp']['umi_prefix'],
+             read_num = config['fastp']['read_num']
+    threads: config['fastp']['threads']
+    log:     stdout = '{sample}/log/fastp.stdout',
+             stderr = '{sample}/log/fastp.stderr'
+    shell:   '{params.fastp_path} '
+             '-i {input.R1} '
+             '-I {input.R2} '
+             '-o {output.R1} '
+             '-O {output.R2} '
+             '--reads_to_process {params.read_num} '
+             '--correction '
+             '--umi '
+             '--umi_loc {params.umi_loc} '
+             '--umi_len {params.umi_len} '
+             '--umi_prefix {params.umi_prefix} '
+             '--adapter_sequence {params.adapter_sequence} '
+             '--adapter_sequence_r2 {params.adapter_sequence_r2} '
+             '-q {params.qualified_quality} '
+             '-u {params.unqualified_percent} '
+             '-w {threads} '
+             '-n {params.n_base_limit} '
+             '-l {params.length_required} '
+             '-j {output.json} '
+             '-h {output.html} '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule star_load_genome:
+    output:  completed = '.genomeLoad/LoadAndExit.completed'
+    params:  star_path = config['star']['path'],
+             genomeDir = config['star']['genomeDir']
+    shell:   '{params.star_path} '
+             '--genomeLoad Remove '
+             '--genomeDir {params.genomeDir} '
+             '--outFileNamePrefix .genomeLoad/ '
+             '1> /dev/null 2> /dev/null || true\n'
+             '{params.star_path} '
+             '--genomeLoad LoadAndExit '
+             '--genomeDir {params.genomeDir} '
+             '--outFileNamePrefix .genomeLoad/ 1> /dev/null\n'
+             'touch {output.completed}'
+
+rule extend_umi:
+    input:   R1 = '{sample}/01.fastp/{sample}_CleanReads_1.fq.gz',
+             R2 = '{sample}/01.fastp/{sample}_CleanReads_2.fq.gz',
+             json = '{sample}/01.fastp/{sample}_fastp.json',
+             html = '{sample}/01.fastp/{sample}_fastp.html'
+    output:  R1='{sample}/02.extend_umi/' \
+                '{sample}_CleanReads_extendUMI_1.fq.gz',
+             R2='{sample}/02.extend_umi/' \
+                '{sample}_CleanReads_extendUMI_2.fq.gz'
+    params:  python3 = config['python3'],
+             scripts = config['scripts'],
+             extend_length = config['extend_umi']['extend_length']
+    log:     stdout = '{sample}/log/extend_umi.stdout',
+             stderr = '{sample}/log/extend_umi.stderr'
+    shell:   '{params.python3} '
+             '{params.scripts}/extend_umi.py '
+             '-i {input.R1} '
+             '-o {output.R1} '
+             '-I {input.R2} '
+             '-O {output.R2} '
+             '--extend-length {params.extend_length} '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule star_for_consensus:
+    input:   R1 = '{sample}/02.extend_umi/' \
+                  '{sample}_CleanReads_extendUMI_1.fq.gz',
+             R2 = '{sample}/02.extend_umi/' \
+                  '{sample}_CleanReads_extendUMI_2.fq.gz'
+    output:  bam = '{sample}/03.star_for_consensus/' \
+                   '{sample}.Aligned.sortedByCoord.out.bam',
+             chimeric = '{sample}/03.star_for_consensus/' \
+                        '{sample}.Chimeric.out.junction',
+             SJ_tab = '{sample}/03.star_for_consensus/{sample}.SJ.out.tab',
+             star_log = '{sample}/03.star_for_consensus/' \
+                        '{sample}.Log.final.out'
+    params:  star = config['star']['path'],
+             outSAMattrRGline = config['star']['outSAMattrRGline'],
+             twopassMode = config['star']['twopassMode'],
+             genomeDir = config['star']['genomeDir'],
+             genomeLoad = config['star']['genomeLoad'],
+             limitBAMsortRAM = config['star']['limitBAMsortRAM']
+    threads: config['star']['threads']
+    log:     stdout = '{sample}/log/star_for_consensus.stdout',
+             stderr = '{sample}/log/star_for_consensus.stderr'
+    shell:   'ulimit -n 10000\n'
+             '{params.star} '
+             '--readFilesIn {input.R1} {input.R2} '
+             '--runThreadN {threads} '
+             '--genomeDir {params.genomeDir} '
+             '--outReadsUnmapped None '
+             '--chimSegmentMin 12 '
+             '--chimJunctionOverhangMin 8 '
+             '--chimOutJunctionFormat 1 '
+             '--alignSJDBoverhangMin 10 '
+             '--alignMatesGapMax 100000 '
+             '--alignIntronMax 100000 '
+             '--alignSJstitchMismatchNmax 5 -1 5 5 '
+             '--outSAMstrandField intronMotif '
+             '--outSAMunmapped Within '
+             '--alignInsertionFlush Right '
+             '--alignSplicedMateMapLminOverLmate 0 '
+             '--alignSplicedMateMapLmin 30 '
+             '--outSAMtype BAM SortedByCoordinate '
+             '--outSAMattrRGline {params.outSAMattrRGline} '
+             '--chimMultimapScoreRange 3 '
+             '--chimScoreJunctionNonGTAG -4 '
+             '--chimMultimapNmax 20 '
+             '--chimNonchimScoreDropMin 10 '
+             '--chimOutType Junctions WithinBAM SoftClip '
+             '--peOverlapNbasesMin 12 '
+             '--peOverlapMMp 0.1 '
+             '--genomeLoad {params.genomeLoad} '
+             '--limitBAMsortRAM {params.limitBAMsortRAM} '
+             '--twopassMode {params.twopassMode} '
+             "--readFilesCommand 'gunzip -c' "
+             '--quantMode GeneCounts '
+             '--outFileNamePrefix '
+             '{wildcards.sample}/03.star_for_consensus/{wildcards.sample}. '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule star_for_consensus_bam_filter:
+    input:   bam = '{sample}/03.star_for_consensus/' \
+                   '{sample}.Aligned.sortedByCoord.out.bam',
+             chimeric = '{sample}/03.star_for_consensus/' \
+                        '{sample}.Chimeric.out.junction',
+             star_log = '{sample}/03.star_for_consensus/' \
+                        '{sample}.Log.final.out'
+    output:  bam = '{sample}/03.star_for_consensus/' \
+                   '{sample}.Aligned.sortedByCoord.out.filter.bam'
+    params:  python3 = config['python3'],
+             scripts = config['scripts'],
+             softclip_length = config['intersect']['softclip_length']
+    log:     stdout = '{sample}/log/star_for_consensus_bam_filter.stdout',
+             stderr = '{sample}/log/star_for_consensus_bam_filter.stderr'
+    shell:   '{params.python3} {params.scripts}/bam_alignments_filter.py '
+             '-i {input.bam} '
+             '-o {output.bam} '
+             '--softclip-length {params.softclip_length} '
+             '--paired True '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule star_for_consensus_intersect:
+    input:   bam = '{sample}/03.star_for_consensus/' \
+                   '{sample}.Aligned.sortedByCoord.out.filter.bam'
+    output:  '{sample}/03.star_for_consensus/' \
+             '{sample}.Aligned.sortedByCoord.out.filter.bam.intersect'
+    params:  bedtools = config['bedtools'],
+             primer_bed = config['primer_bed'],
+             primer_cov = config['intersect']['primer_cov']
+    log:     stderr = '{sample}/log/star_for_consensus_intersect.stderr'
+    shell:   '{params.bedtools} intersect '
+             '-a {input.bam} '
+             '-b {params.primer_bed} '
+             '-F {params.primer_cov} -bed -wa -wb -s '
+             '> {output} '
+             '2> {log.stderr}'
+
+rule calculate_total_primer_depth:
+    input:   '{sample}/03.star_for_consensus/'
+             '{sample}.Aligned.sortedByCoord.out.filter.bam.intersect'
+    output:  primer_depth = \
+             protected('{sample}/result/{sample}.total_primer_depth.xls'),
+             read_primer = \
+             protected('{sample}/result/{sample}.total_read_primer.xls')
+    params:  python3 = config['python3'],
+             scripts = config['scripts'],
+             primer_bed = config['primer_bed'],
+             distance = config['intersect']['distance']
+    log:     stdout = '{sample}/log/calculate_total_primer_depth.stdout',
+             stderr = '{sample}/log/calculate_total_primer_depth.stderr'
+    shell:   '{params.python3} '
+             '{params.scripts}/calculate_total_primer_depth.py '
+             '--intersect {input} '
+             '--primer-bed {params.primer_bed} '
+             '--distance {params.distance} '
+             '--primer-depth {output.primer_depth} '
+             '--read-primer {output.read_primer} '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule gencore:
+    input:   bam = '{sample}/03.star_for_consensus/' \
+                   '{sample}.Aligned.sortedByCoord.out.bam',
+             chimeric = '{sample}/03.star_for_consensus/' \
+                        '{sample}.Chimeric.out.junction',
+             star_log = '{sample}/03.star_for_consensus/' \
+                        '{sample}.Log.final.out'
+    output:  bam = '{sample}/04.gencore/' \
+                   '{sample}.Aligned.sortedByCoord.out.gencore.bam',
+             html = '{sample}/04.gencore/{sample}.gencore.html',
+             json = '{sample}/04.gencore/{sample}.gencore.json'
+    params:  gencore_path = config['gencore']['path'],
+             genome = config['gencore']['genome'],
+             supporting_reads = config['gencore']['supporting_reads'],
+             umi_prefix = config['fastp']['umi_prefix'],
+             umi_diff_threshold = config['gencore']['umi_diff_threshold']
+    log:     stdout = '{sample}/log/gencore.stdout',
+             stderr = '{sample}/log/gencore.stderr'
+    shell:   '{params.gencore_path} '
+             '-r {params.genome} '
+             '-i {input.bam} '
+             '-o {output} '
+             '-s {params.supporting_reads} '
+             '-h {output.html} '
+             '-j {output.json} '
+             "--umi_prefix '{params.umi_prefix}' "
+             '--umi_diff_threshold {params.umi_diff_threshold} '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule bamtofastq:
+    input:   bam = '{sample}/04.gencore/' \
+                   '{sample}.Aligned.sortedByCoord.out.gencore.bam',
+             html = '{sample}/04.gencore/{sample}.gencore.html',
+             json = '{sample}/04.gencore/{sample}.gencore.json'
+    output:  R1 = '{sample}/04.gencore/{sample}_Consensus_1.fq.gz',
+             R2 = '{sample}/04.gencore/{sample}_Consensus_2.fq.gz'
+    params:  python3 = config['python3'],
+             scripts = config['scripts']
+    log:     stdout = '{sample}/log/bamtofastq.stdout',
+             stderr = '{sample}/log/bamtofastq.stderr'
+    shell:   '{params.python3} {params.scripts}/extract_pair_reads.py '
+             '-bam {input.bam} '
+             '-fq1 {output.R1} '
+             '-fq2 {output.R2} '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule merge_fastq:
+    input:   R1 = '{sample}/04.gencore/{sample}_Consensus_1.fq.gz',
+             R2 = '{sample}/04.gencore/{sample}_Consensus_2.fq.gz'
+    output:  merge = '{sample}/04.gencore/{sample}_Consensus_Merge.fq.gz',
+             json = '{sample}/04.gencore/{sample}.fastp_merge.json',
+             html = '{sample}/04.gencore/{sample}.fastp_merge.html'
+    params:  fastp_path = config['fastp']['path'],
+             adapter_sequence = config['fastp']['adapter_sequence'],
+             adapter_sequence_r2 = config['fastp']['adapter_sequence_r2'],
+             qualified_quality = config['fastp']['qualified_quality'],
+             unqualified_percent = config['fastp']['unqualified_percent'],
+             n_base_limit = config['fastp']['n_base_limit'],
+             length_required= config['fastp']['length_required']
+    threads: config['fastp']['threads']
+    log:     stdout = '{sample}/log/merge_fastq.stdout',
+             stderr = '{sample}/log/merge_fastq.stderr'
+    shell:   '{params.fastp_path} '
+             '-i {input.R1} '
+             '-I {input.R2} '
+             '--merge '
+             '--merged_out {output.merge} '
+             '--adapter_sequence {params.adapter_sequence} '
+             '--adapter_sequence_r2 {params.adapter_sequence_r2} '
+             '-q {params.qualified_quality} '
+             '-u {params.unqualified_percent} '
+             '-w {threads} '
+             '-n {params.n_base_limit} '
+             '-l {params.length_required} '
+             '-j {output.json} '
+             '-h {output.html} '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule star_for_variant:
+    input:   merge = '{sample}/04.gencore/{sample}_Consensus_Merge.fq.gz',
+             json = '{sample}/04.gencore/{sample}.fastp_merge.json',
+             html = '{sample}/04.gencore/{sample}.fastp_merge.html'
+    output:  bam = protected('{sample}/05.star_for_variant/' \
+                             '{sample}.Aligned.sortedByCoord.out.bam'),
+             chimeric = protected('{sample}/05.star_for_variant/' \
+                                  '{sample}.Chimeric.out.junction'),
+             SJ_tab = '{sample}/05.star_for_variant/{sample}.SJ.out.tab',
+             star_log = '{sample}/05.star_for_variant/{sample}.Log.final.out'
+    params:  star_path = config['star']['path'],
+             genomeDir = config['star']['genomeDir'],
+             outSAMattrRGline = config['star']['outSAMattrRGline'],
+             twopassMode = config['star']['twopassMode'],
+             genomeLoad = config['star']['genomeLoad'],
+             limitBAMsortRAM = config['star']['limitBAMsortRAM']
+    threads: config['star']['threads']
+    log:     stdout = '{sample}/log/star_for_variant.stdout',
+             stderr = '{sample}/log/star_for_variant.stderr'
+    shell:   'ulimit -n 10000\n'
+             '{params.star_path} '
+             '--readFilesIn {input.merge} '
+             '--runThreadN {threads} '
+             '--genomeDir {params.genomeDir} '
+             '--outReadsUnmapped None '
+             '--chimSegmentMin 12 '
+             '--chimJunctionOverhangMin 8 '
+             '--chimOutJunctionFormat 1 '
+             '--alignSJDBoverhangMin 10 '
+             '--alignMatesGapMax 100000 '
+             '--alignIntronMax 100000 '
+             '--alignSJstitchMismatchNmax 5 -1 5 5 '
+             '--outSAMstrandField intronMotif '
+             '--outSAMunmapped Within '
+             '--outSAMattrRGline {params.outSAMattrRGline} '
+             '--outSAMattributes All '
+             '--alignInsertionFlush Right '
+             '--alignSplicedMateMapLminOverLmate 0 '
+             '--alignSplicedMateMapLmin 30 '
+             '--outSAMtype BAM SortedByCoordinate '
+             '--chimMultimapScoreRange 3 '
+             '--chimScoreJunctionNonGTAG -4 '
+             '--chimMultimapNmax 20 '
+             '--chimNonchimScoreDropMin 10 '
+             '--chimOutType Junctions WithinBAM SoftClip '
+             '--peOverlapNbasesMin 12 '
+             '--peOverlapMMp 0.1 '
+             '--genomeLoad {params.genomeLoad} '
+             '--limitBAMsortRAM {params.limitBAMsortRAM} '
+             '--twopassMode {params.twopassMode} '
+             "--readFilesCommand 'gunzip -c' "
+             '--quantMode GeneCounts '
+             '--outFileNamePrefix '
+             '{wildcards.sample}/05.star_for_variant/{wildcards.sample}. '
+             '1> {log.stdout} '
+             '2> {log.stderr}\n'
+             'samtools index '
+             '{wildcards.sample}/05.star_for_variant/{wildcards.sample}'
+             '.Aligned.sortedByCoord.out.bam '
+             '1>> {log.stdout} '
+             '2>> {log.stderr}'
+
+rule star_for_variant_bam_filter:
+    input:   bam = '{sample}/05.star_for_variant/' \
+                   '{sample}.Aligned.sortedByCoord.out.bam',
+             chimeric = '{sample}/05.star_for_variant/' \
+                        '{sample}.Chimeric.out.junction',
+             star_log = '{sample}/05.star_for_variant/{sample}.Log.final.out'
+    output:  bam = '{sample}/05.star_for_variant/' \
+                   '{sample}.Aligned.sortedByCoord.out.filter.bam'
+    params:  python3 = config['python3'],
+             scripts = config['scripts'],
+             softclip_length = config['intersect']['softclip_length']
+    log:     stdout = '{sample}/log/star_for_variant_bam_filter.stdout',
+             stderr = '{sample}/log/star_for_variant_bam_filter.stderr'
+    shell:   '{params.python3} {params.scripts}/bam_alignments_filter.py '
+             '-i {input.bam} '
+             '-o {output.bam} '
+             '--softclip-length {params.softclip_length} '
+             '--paired False '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule star_for_variant_intersect:
+    input:   bam = '{sample}/05.star_for_variant/' \
+                   '{sample}.Aligned.sortedByCoord.out.filter.bam'
+    output:  '{sample}/05.star_for_variant/'
+             '{sample}.Aligned.sortedByCoord.out.filter.bam.intersect'
+    params:  bedtools = config['bedtools'],
+             primer_bed = config['primer_bed'],
+             primer_cov = config['intersect']['primer_cov']
+    log:     stderr = '{sample}/log/star_for_variant_intersect.stderr'
+    shell:   '{params.bedtools} intersect '
+             '-a {input.bam} '
+             '-b {params.primer_bed} '
+             '-F {params.primer_cov} -bed -wa -wb -s '
+             '> {output} '
+             '2> {log.stderr}'
+
+rule calculate_unique_primer_depth:
+    input:   '{sample}/05.star_for_variant/'
+             '{sample}.Aligned.sortedByCoord.out.filter.bam.intersect'
+    output:  primer_depth = \
+                protected('{sample}/result/{sample}.unique_primer_depth.xls'),
+             read_primer = \
+                protected('{sample}/result/{sample}.unique_read_primer.xls')
+    params:  python3 = config['python3'],
+             scripts = config['scripts'],
+             primer_bed = config['primer_bed'],
+             distance = config['intersect']['distance']
+    log:     stdout = '{sample}/log/calculate_unique_primer_depth.stdout',
+             stderr = '{sample}/log/calculate_unique_primer_depth.stderr'
+    shell:   '{params.python3} '
+             '{params.scripts}/calculate_unique_primer_depth.py '
+             '--intersect {input} '
+             '--primer-bed {params.primer_bed} '
+             '--distance {params.distance} '
+             '--primer-depth {output.primer_depth} '
+             '--read-primer {output.read_primer} '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule reads_summary:
+    input:   fastp_json = '{sample}/01.fastp/{sample}_fastp.json',
+             total_star_log = '{sample}/03.star_for_consensus/' \
+                              '{sample}.Log.final.out',
+             unique_star_log = '{sample}/05.star_for_variant/' \
+                               '{sample}.Log.final.out',
+             total_primer_depth = '{sample}/result/' \
+                                  '{sample}.total_primer_depth.xls',
+             unique_primer_depth = '{sample}/result/' \
+                                   '{sample}.unique_primer_depth.xls'
+    output:  protected('{sample}/result/{sample}.RNA_reads_summary.xls')
+    params:  python3 = config['python3'],
+             scripts = config['scripts'],
+    shell:   '{params.python3} '
+             '{params.scripts}/reads_summary.py '
+             '--fastp-json {input.fastp_json} '
+             '--total-star-log {input.total_star_log} '
+             '--unique-star-log {input.unique_star_log} '
+             '--total-primer-depth {input.total_primer_depth} '
+             '--unique-primer-depth {input.unique_primer_depth} '
+             '--summary {output}'
+
+rule star_remove_genome:
+    input:   expand('{sample}/05.star_for_variant/{sample}.Log.final.out', \
+                      sample=SAMPLES) + \
+             expand('.genomeLoad/LoadAndExit.completed')
+    output:  completed = '.genomeLoad/Remove.completed'
+    params:  star_path = config['star']['path'],
+             genomeDir = config['star']['genomeDir']
+    shell:   '{params.star_path} '
+             '--genomeLoad Remove '
+             '--genomeDir {params.genomeDir} '
+             '--outFileNamePrefix .genomeLoad/ 1> /dev/null\n'
+             'touch {output.completed}'
+
+rule star_fusion:
+    input:   chimeric = '{sample}/05.star_for_variant/' \
+                        '{sample}.Chimeric.out.junction',
+             star_log = '{sample}/05.star_for_variant/{sample}.Log.final.out'
+    output:  check = '{sample}/06.star_fusion/_starF_checkpoints/' \
+                     'abridged_final',
+             prediction = '{sample}/06.star_fusion/' \
+                          'star-fusion.fusion_predictions.tsv',
+             coding_effect = '{sample}/06.star_fusion/' \
+             'star-fusion.fusion_predictions.abridged.coding_effect.tsv'
+    conda:   'base'
+    params:  star_path = config['star']['path'],
+             star_fusion_path = config['star_fusion']['path'],
+             star_fusion_lib = config['star_fusion']['star_fusion_lib'],
+             min_sum_frags = config['star_fusion']['min_sum_frags']
+    threads: config['star_fusion']['threads']
+    log:     stdout = '{sample}/log/star_fusion.stdout',
+             stderr = '{sample}/log/star_fusion.stderr'
+    shell:   'rm -rf {wildcards.sample}/06.star_fusion\n'
+             '{params.star_fusion_path} '
+             '--chimeric_junction {input.chimeric} '
+             '--genome_lib_dir {params.star_fusion_lib} '
+             '--output_dir {wildcards.sample}/06.star_fusion '
+             '--CPU {threads} '
+             '--examine_coding_effect '
+             '--min_sum_frags {params.min_sum_frags} '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule ctat_splicing:
+    input:   bam = '{sample}/05.star_for_variant/' \
+                   '{sample}.Aligned.sortedByCoord.out.bam',
+             SJ_tab = '{sample}/05.star_for_variant/{sample}.SJ.out.tab',
+             chimeric = '{sample}/05.star_for_variant/' \
+                        '{sample}.Chimeric.out.junction',
+             star_log = '{sample}/05.star_for_variant/{sample}.Log.final.out'
+    output:  check = '{sample}/07.ctat_splicing/{sample}.chckpts/' \
+                     'introns_filtered.ok'
+    params:  ctat_splicing = config['ctat_splicing']['path'],
+             star_fusion_lib = config['star_fusion']['star_fusion_lib']
+    log:     stdout = '{sample}/log/ctat_splicing.stdout',
+             stderr = '{sample}/log/ctat_splicing.stderr'
+    shell:   '{params.ctat_splicing} '
+             '--SJ_tab_file {input.SJ_tab} '
+             '--chimJ_file {input.chimeric} '
+             '--bam_file {input.bam} '
+             '--ctat_genome_lib {params.star_fusion_lib} '
+             '--output_prefix '
+             '{wildcards.sample}/07.ctat_splicing/{wildcards.sample} '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule star_fusion_filter:
+    input:   star_fusion_check = '{sample}/06.star_fusion/' \
+                                 '_starF_checkpoints/abridged_final',
+             ctat_splicing_check = '{sample}/07.ctat_splicing/' \
+                                   '{sample}.chckpts/introns_filtered.ok',
+             prediction = '{sample}/06.star_fusion/' \
+                          'star-fusion.fusion_predictions.tsv',
+             coding_effect = '{sample}/06.star_fusion/' \
+             'star-fusion.fusion_predictions.abridged.coding_effect.tsv',
+             primer_depth ='{sample}/result/{sample}.unique_primer_depth.xls',
+             read_primer = '{sample}/result/{sample}.unique_read_primer.xls',
+             bam = '{sample}/05.star_for_variant/' \
+                   '{sample}.Aligned.sortedByCoord.out.bam'
+    output:  primer_frequency = \
+                 protected('{sample}/result/{sample}.primer_frequency.xls'),
+             fusion_frequency = \
+                 protected('{sample}/result/{sample}.fusion_frequency.xls'),
+             fusion_filter = \
+                 protected('{sample}/result/{sample}.fusion_filter.xls'),
+             bam = '{sample}/06.star_fusion/' \
+                 'star-fusion.fusion_frequency.intarget_junction_reads.bam',
+             bedpe = '{sample}/06.star_fusion/' \
+                     'star-fusion.fusion_frequency.bedpe',
+             igv_json = '{sample}/06.star_fusion/' \
+                        'star-fusion.fusion_frequency.trackConfigs.json'
+    params:  python3 = config['python3'],
+             scripts = config['scripts'],
+             star_fusion_lib = config['star_fusion']['star_fusion_lib'],
+             min_junction_reads = \
+                config['star_fusion_filter']['min_junction_reads'],
+             min_fusion_frequency = \
+                config['star_fusion_filter']['min_fusion_frequency'],
+             min_primer_depth = \
+                config['star_fusion_filter']['min_primer_depth']
+    log:     stdout = '{sample}/log/star_fusion_filter.stdout',
+             stderr = '{sample}/log/star_fusion_filter.stderr'
+    shell:   '{params.python3} {params.scripts}/star_fusion_filter.py '
+             '--prediction {input.prediction} '
+             '--coding-effect {input.coding_effect} '
+             '--ctat-cancer-introns {wildcards.sample}/'
+             '07.ctat_splicing/{wildcards.sample}.cancer.introns '
+             '--ctat-introns {wildcards.sample}/'
+             '07.ctat_splicing/{wildcards.sample}.introns '
+             '--primer-depth {input.primer_depth} '
+             '--read-primer {input.read_primer} '
+             '--genome-lib-dir {params.star_fusion_lib} '
+             '--input-bam {input.bam} '
+             '--output-bam {output.bam} '
+             '--output-bedpe {output.bedpe} '
+             '--igv-json {output.igv_json} '
+             '--primer-frequency {output.primer_frequency} '
+             '--fusion-frequency {output.fusion_frequency} '
+             '--min-junction-reads {params.min_junction_reads} '
+             '--min-fusion-frequency {params.min_fusion_frequency} '
+             '--min-primer-depth {params.min_primer_depth} '
+             '--fusion-filter {output.fusion_filter} '
+             '1> {log.stdout} '
+             '2> {log.stderr}'
+
+rule make_fusion_igv_html:
+    input:   bedpe = '{sample}/06.star_fusion/' \
+                     'star-fusion.fusion_frequency.bedpe',
+             igv_json = '{sample}/06.star_fusion/' \
+                        'star-fusion.fusion_frequency.trackConfigs.json'
+    output:  html = protected('{sample}/result/{sample}.fusion_visual.html')
+    params:  star_fusion_lib = config['star_fusion']['star_fusion_lib']
+    log:     stdout = '{sample}/log/make_fusion_igv_html.stdout',
+             stderr = '{sample}/log/make_fusion_igv_html.stderr'
+    shell:   'create_report '
+             '{input.bedpe} '
+             '{params.star_fusion_lib}/ref_genome.fa '
+             '--track-config {input.igv_json} '
+             '--output {output} '
+             '1> {log.stdout} '
+             '2> {log.stderr}'

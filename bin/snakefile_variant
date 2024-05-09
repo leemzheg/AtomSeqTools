@@ -1,0 +1,485 @@
+SAMPLES = config['samples']
+
+rule all:
+    input:
+            expand('{sample}/{sample}_SNV_Indels_filter.xls',sample=SAMPLES)
+
+rule fastp_pe:
+    input:  fq1 = lambda wildcards: f"{config['samples'][wildcards.sample]['directory']}/{config['samples'][wildcards.sample]['prefix']}{config['samples'][wildcards.sample]['R1_suffix']}",
+            fq2 = lambda wildcards: f"{config['samples'][wildcards.sample]['directory']}/{config['samples'][wildcards.sample]['prefix']}{config['samples'][wildcards.sample]['R2_suffix']}"
+    output: qc_fq1 = '{sample}/Mid-files/01_CleanFq_1.fq.gz',
+            qc_fq2 = '{sample}/Mid-files/01_CleanFq_2.fq.gz',
+            html = '{sample}/Mid-files/01_CleanFq.html',
+            json = '{sample}/Mid-files/01_CleanFq.json'
+    log:    #stdout = '{sample}/logs/01_fastp.stdout',
+            stderr = '{sample}/logs/01_fastp.stderr',
+    params: fastp = config['fastp']['path'],
+            read_num = config['fastp']['read_to_process'],
+            adapter1 = config['fastp']['adapter_r1'],
+            adapter2 = config['fastp']['adapter_r2']
+    threads:config['fastp']['threads']
+    shell:
+            '{params.fastp} -i {input.fq1} -o {output.qc_fq1} '
+            '-I {input.fq2} -O {output.qc_fq2} '
+            '--adapter_sequence {params.adapter1} '
+            '--adapter_sequence_r2 {params.adapter2} '
+            '--correction --fix_mgi_id --cut_tail '
+            '-l 50 -w {threads} --reads_to_process {params.read_num} '
+            '-j {output.json} -h {output.html} '
+            '2>{log.stderr}\n'
+
+rule add_UMI:
+    input:
+        fq1 = '{sample}/Mid-files/01_CleanFq_1.fq.gz',
+        fq2 = '{sample}/Mid-files/01_CleanFq_2.fq.gz'
+    output:
+        umi1 = '{sample}/Mid-files/02_FqWithUmi_1.fq.gz',
+        umi2 = '{sample}/Mid-files/02_FqWithUmi_2.fq.gz'
+    run:
+        import gzip
+        a = 0
+        a = 0
+        with gzip.open(output.umi1, "wt", compresslevel=4) as fq1_output:
+            with gzip.open(output.umi2, "wt", compresslevel=4) as fq2_output:
+                with gzip.open(input.fq1, "rt") as handle1:
+                    with gzip.open(input.fq2, "rt") as handle2:
+                        for tu in zip(handle1, handle2):
+                                a += 1
+                                if a % 4 == 1:
+                                        title1 = tu[0].split()[0]
+                                        title2 = tu[1].split()[0]
+                                if a % 4 == 2:
+                                        tmp_umi = ":UMI_" + tu[1][:20]
+                                        fq1_output.write(title1 + tmp_umi + "\n")
+                                        fq1_output.write(tu[0])
+                                        fq2_output.write(title2 + tmp_umi + "\n")
+                                        fq2_output.write(tu[1])
+                                if a % 4 == 3:
+                                        fq1_output.write(tu[0])
+                                        fq2_output.write(tu[1])
+                                if a % 4 == 0:
+                                        fq1_output.write(tu[0])
+                                        fq2_output.write(tu[1])
+
+rule bwa_alignment:
+    input:  R1 = '{sample}/Mid-files/02_FqWithUmi_1.fq.gz',
+            R2 = '{sample}/Mid-files/02_FqWithUmi_2.fq.gz'
+    output: sam = '{sample}/Mid-files/03_temp.sam'
+    log:    #stdout = '{sample}/logs/03_bwa_alignment.stdout',
+            stderr = '{sample}/logs/03_bwa_alignment.stderr'
+    params: bwa = config['bwa']['path'],
+            index = config['bwa']['bwa_index'],
+            read_group = config['bwa']['read_group']
+    threads:config['bwa']['threads']
+    shell:
+            '{params.bwa} mem -K 10000000 -t {threads} '
+            '-R {params.read_group} {params.index} '
+            '{input.R1} {input.R2} -o {output.sam} '
+            '2> {log.stderr}'
+
+rule samtools_sort:
+    input:  sam = '{sample}/Mid-files/03_temp.sam'
+    output: bam = '{sample}/Mid-files/03_bwa_sort.bam'
+    log:    #stdout = '{sample}/logs/3_samtools_sort.stdout',
+            stderr = '{sample}/logs/3_samtools_sort.stderr'
+    params: samtools = config['samtools']['path']
+    threads:config['samtools']['threads']
+    shell:
+            '{params.samtools} view -bh -f 3 '
+            '-@ {threads} {input.sam}|{params.samtools} '
+            'sort - -@ {threads} -o {output.bam} '
+            '2> {log.stderr}\n'
+            '{params.samtools} index {output.bam}'
+
+rule gatk_base_recall:
+    input:  bam = '{sample}/Mid-files/03_bwa_sort.bam'
+    output: tsv = '{sample}/Mid-files/04_recal_table.tsv'
+    params: gatk = config['gatk']['path'],
+            fasta = config['bwa']['fasta'],
+            snps = config['gatk']['known_snps'],
+            indels = config['gatk']['known_indels']
+    log:    stdout = '{sample}/logs/04_gatk_recall.stdout',
+            stderr = '{sample}/logs/04_gatk_recall.stderr'
+    shell:
+            '{params.gatk} BaseRecalibrator '
+            '-R {params.fasta} '
+            '--known-sites {params.snps} '
+            '--known-sites {params.indels} '
+            '-I {input.bam} -O {output.tsv} '
+            '1> {log.stdout} 2> {log.stderr}'
+
+rule gatk_BQSR:
+    input:  bam = '{sample}/Mid-files/03_bwa_sort.bam',
+            tsv = '{sample}/Mid-files/04_recal_table.tsv'
+    output: bam = '{sample}/Mid-files/04_bqsr.bam'
+    params: gatk = config['gatk']['path'],
+            fasta = config['bwa']['fasta']
+    log:    #stdout = '{sample}/logs/04_gatk_bqsr.stdout',
+            stderr = '{sample}/logs/04_gatk_bqsr.stderr'
+    shell:
+            '{params.gatk} ApplyBQSR '
+            '-R {params.fasta} -bqsr {input.tsv} '
+            '-I {input.bam} -O {output.bam} '
+            '2> {log.stderr}'
+
+rule gencore:
+    input:  bam = '{sample}/Mid-files/04_bqsr.bam',
+    output: bam = temp('{sample}/Mid-files/05_dedup_not_sort.bam'),
+            html = '{sample}/Mid-files/05_deduplicated.html',
+            json = '{sample}/Mid-files/05_deduplicated.json'
+    params: gencore = config['gencore']['path'],
+            fasta = config['bwa']['fasta'],
+            sup_reads = config['gencore']['support_reads']
+    log:    #stdout = '{sample}/logs/05_gencore.stdout',
+            stderr = '{sample}/logs/05_gencore.stderr'
+    shell:
+            '{params.gencore} -r {params.fasta} '
+            '-u UMI -s {params.sup_reads} '
+            '-i {input.bam} -o {output.bam} '
+            '-h {output.html} -j {output.json} '
+            '2> {log.stderr}'
+
+rule bam_sort:
+    input:  bam = '{sample}/Mid-files/05_dedup_not_sort.bam',
+    output: bam = '{sample}/Mid-files/05_deduplicated_sort.bam',
+    params: samtools = config['samtools']['path'],
+    threads:config['samtools']['threads']
+    shell:
+            '{params.samtools} sort -@ {threads} {input.bam} >{output.bam}\n'
+            '{params.samtools} index -@ {threads} {output.bam}'
+
+rule indicator_stat:
+    input:  bam = '{sample}/Mid-files/05_deduplicated_sort.bam',
+    output: stat = '{sample}/{sample}_basic_summary.xls'
+    params: primer_bed = config['bed'],
+            script = config['scripts'],
+            python3 = config['python3'],
+            samtools_path = config['samtools']['path'],
+            bedtools_path = config['bedtools'],
+    log:    stdout = '{sample}/logs/05_stat.stdout',
+    shell:
+            '{params.python3} {params.script}/read_summary.py '
+            '-bed {params.primer_bed} -outdir {wildcards.sample}/Mid-files '
+            '--fq-prefix {wildcards.sample} '
+            '1> {log.stdout}'
+
+rule cnvCall:
+    input:  bam = '{sample}/Mid-files/05_deduplicated_sort.bam',
+            stat = '{sample}/{sample}_basic_summary.xls',
+    output: xls = temp('{sample}/CNV_MSI_check.txt')
+    params: msisensor = config['msisensor_pro']['path'],
+            python3 = config['python3'],
+            scripts = config['scripts'],
+            cnvkit = config['cnvkit']['path'],
+            Rscript = config['cnvkit']['Rscript_path'],
+            cnvbaseline = config['cnv-baseline'],
+            msibaseline = config['msi-baseline'],
+            cnv = config['cnv-call'],
+            msi = config['msi-call'],
+            docs = config['docs'],
+            bed = config['bed'],
+            bedtools = config['bedtools'],
+            fasta = config['bwa']['fasta'],
+    log:    stdout = '{sample}/logs/06_cnvkit.stdout',
+            stderr = '{sample}/logs/06_cnvkit.stderr'
+    run:
+        if params.cnv:
+                if params.cnvbaseline:
+                        shell('{params.cnvkit} batch {input.bam} '
+                        '-m amplicon -r {params.cnvbaseline} -d '
+                        '{wildcards.sample}/CNVcalling '
+                        #'--rscript-path {params.Rscript} '
+                        '2> {log.stderr}\n'
+                        '{params.python3} {params.scripts}/calculate_cnv.py '
+                        '-cnr {wildcards.sample}/CNVcalling/*.cnr '
+                        '-cnv {wildcards.sample}/{wildcards.sample}_CNV_summary.xls '
+                        '-png {wildcards.sample}/{wildcards.sample}_CNV.png 2>> {log.stderr}')    
+                else:
+                        shell('{params.python3} {params.scripts}/primer_turn_region.py '
+                        '-primer {params.bed} -outdir {wildcards.sample}\n'
+                        '{params.bedtools} sort -i {wildcards.sample}/zz.tmp.xls|bedtools merge '
+                        '> {wildcards.sample}/zz.tmp.region.xls\n'
+                        '{params.cnvkit} target {wildcards.sample}/zz.tmp.region.xls '
+                        '--annotate {params.docs}/refFlat.txt -o '
+                        '{wildcards.sample}/zz.tmp.bait 2> {log.stderr}\n'
+                        '{params.python3} {params.scripts}/mark_bed_cnvfusion.py --input '
+                        '{wildcards.sample}/zz.tmp.bait --cnv-gene {params.docs}/general_CNVgene.txt '
+                        '--output {wildcards.sample}/zz.tmp.bait.bed\n'
+                        '{params.cnvkit} batch {input.bam} -m amplicon -f {params.fasta} '
+                        '-t {wildcards.sample}/zz.tmp.bait.bed -n --target-avg-size 50 -d '
+                        '{wildcards.sample}/CNVcalling '
+                        #'--rscript-path {params.Rscript} '
+                        '2>> {log.stderr}\n'
+                        '{params.python3} {params.scripts}/calculate_cnv.py '
+                        '-cnr {wildcards.sample}/CNVcalling/*.cnr '
+                        '-cnv {wildcards.sample}/{wildcards.sample}_CNV_summary.xls '
+                        '-png {wildcards.sample}/{wildcards.sample}_CNV.png 2>> {log.stderr}\n'
+                        'rm -f {wildcards.sample}/zz.tmp*')
+        if params.msi:
+                shell('{params.msisensor} pro -c 15 -d {params.msibaseline} '
+                '-t {input.bam} -o {wildcards.sample}/{wildcards.sample}_MSI_summary.xls '
+                '1> {log.stdout} 2>> {log.stderr}\n'
+                'rm -f {wildcards.sample}/{wildcards.sample}_MSI_summary.xls_*')
+        shell('touch {output.xls}')
+
+rule primer_trimmer:
+    input:  bam = '{sample}/Mid-files/05_deduplicated_sort.bam',
+            tmp = '{sample}/CNV_MSI_check.txt',
+    output: bam = '{sample}/Mid-files/06_trimPrimer.bam',
+            tmp = temp('{sample}/Mid-files/06_trimPrimer_temp.bam'),
+            plus = temp('{sample}/Mid-files/06_trimPrimer_plus.bam'),
+            minus = temp('{sample}/Mid-files/06_trimPrimer_minus.bam')
+    params: script = config['scripts'],
+            samtools = config['samtools']['path'],
+            primer_bed = config['bed']
+    threads:config['samtools']['threads']
+    log:    #stdout = '{sample}/logs/05_gencore.stdout',
+            stderr = '{sample}/logs/06_trimPrimer.stderr'
+    shell:
+            '{params.script}/AtomSeqTrimmer.pl '
+            '-primer {params.primer_bed} -thread {threads} '
+            '-type pe -split 1 -in {input.bam} '
+            '-out {output.bam} 2> {log.stderr}\n'
+            '{params.samtools} merge -@ {threads} {output.tmp} '
+            '{output.plus} {output.minus}\n'
+            '{params.samtools} sort -@ {threads} '
+            '{output.tmp} >{output.bam} '
+
+rule call_vcf:
+    input:  bam = '{sample}/Mid-files/06_trimPrimer.bam',    
+    output: vcf = '{sample}/Mid-files/07_variant.vcf',
+    params: varscan = config['varscan2']['path'],
+            samtools = config['samtools']['path'],
+            fasta = config['bwa']['fasta'],
+            min_coverage = config['varscan2']['min_coverage'],
+            min_ave_quality = config['varscan2']['min_ave_quality']
+    threads:config['samtools']['threads']
+    log:    stderr = '{sample}/logs/07_call_vcf.stderr'
+    shell:
+            '{params.samtools} view -@ {threads} -b '
+            '-q 10 {input.bam}|{params.samtools} '
+            'mpileup -B --min-BQ 0 --max-depth 30000 '
+            '-f {params.fasta} - |{params.varscan} mpileup2cns - '
+            '--min-coverage {params.min_coverage} --min-reads2 1 '
+            '--min-avg-qual {params.min_ave_quality} --min-var-freq '
+            '0.0001 --p-value 1 --strand-filter 1 --output-vcf 1 '
+            '--variants >{output.vcf} 2> {log.stderr}'
+
+rule vcf_on_region:
+    input:  vcf = '{sample}/Mid-files/07_variant.vcf',
+    output: vcf = '{sample}/Mid-files/07_variant_left.vcf',
+            tmp_vcf = temp('{sample}/Mid-files/07_var_target_tmp.vcf'),
+    params: bedtools = config['bedtools'],
+            bed = config['bed'],
+            python3 = config['python3'],
+            scripts = config['scripts'],
+    threads:config['samtools']['threads']
+    log:    stderr = '{sample}/logs/07_vcf_on_target.stderr'
+    shell:
+            '{params.python3} {params.scripts}/primer_turn_region.py '
+            '-primer {params.bed} -outdir {wildcards.sample}\n'
+            '{params.bedtools} sort -i {wildcards.sample}/zz.tmp.xls|bedtools merge '
+            '> {wildcards.sample}/zz.tmp.region.xls\n'
+            '{params.bedtools} intersect -a {input.vcf} '
+            '-b {wildcards.sample}/zz.tmp.region.xls -wa >{output.tmp_vcf}\n'
+            '''awk '{{OFS="\\t";$3="V"NR;$6="V"NR;print $0}}' '''
+            '{output.tmp_vcf} >{output.vcf}\n'
+            'rm -f {wildcards.sample}/zz.tmp*'
+
+rule right_alignment:
+    input:  vcf = '{sample}/Mid-files/07_variant_left.vcf',
+    output: vcf = '{sample}/Mid-files/07_variant_shift.vcf'
+    params: vep = config['vep']['path'],
+            vep_lib = config['vep']['vep_library'],
+            fasta = config['bwa']['fasta'],
+    #conda:  'vep'
+    shell:
+            '{params.vep} --species homo_sapiens --assembly GRCh38 '
+            '--hgvs --format vcf --offline --shift_3prime 1 '
+            '--force_overwrite --shift_length --shift_genomic '
+            '--dir {params.vep_lib} --fasta {params.fasta} '
+            '--input_file {input.vcf} --output_file {output.vcf}'
+
+rule get_right_vcf:
+    input:  vcf = '{sample}/Mid-files/07_variant_left.vcf',
+            shift = '{sample}/Mid-files/07_variant_shift.vcf'
+    output: vcf = '{sample}/Mid-files/07_variant_right.vcf'
+    params: oncokb_tsv = config['docs'] + '/cancerGeneList.tsv',
+            script = config['scripts'],
+            python3 = config['python3']
+    shell:
+            '{params.python3} {params.script}/turn_vcf_to_right.py '
+            '-tsv {params.oncokb_tsv} -shift {input.shift} '
+            '-i {input.vcf} -o {output.vcf}'
+
+rule snpEff_annotate:
+    input:  vcf = '{sample}/Mid-files/07_variant_right.vcf',
+    output: vcf = '{sample}/Mid-files/07_variant_snpeff.vcf'
+    params: snpEff = config['snpEff']['path'],
+    log:    #stdout = '{sample}/logs/7_snpEff.stdout',
+            stderr = '{sample}/logs/07_snpEff.stderr',
+    shell:
+            'java -Xmx32g -jar {params.snpEff} -v GRCh38.p14 -noStats '
+            '{input.vcf} >{output.vcf} 2> {log.stderr}'
+
+rule annovar_avinput:
+    input:  vcf = '{sample}/Mid-files/07_variant_left.vcf',
+            right_vcf = '{sample}/Mid-files/07_variant_right.vcf'
+    output: avi = '{sample}/Mid-files/08_avinput_left.xls',
+            right_avi = '{sample}/Mid-files/08_avinput_right.xls'
+    params: annovar = config['annovar']['path'],
+    log:    stderr = '{sample}/logs/07_snpEff.stderr'
+    shell:
+            '{params.annovar}/convert2annovar.pl -format vcf4 '
+            '{input.vcf} >{output.avi} 2> {log.stderr}\n'
+            '{params.annovar}/convert2annovar.pl -format vcf4 '
+            '{input.right_vcf} >{output.right_avi} '
+            '2>> {log.stderr}'
+
+rule avinput_modify:
+    input:  avi = '{sample}/Mid-files/08_avinput_right.xls',
+            vcf = '{sample}/Mid-files/07_variant_right.vcf'
+    output: avi = '{sample}/Mid-files/08_avinput_fix.xls'
+    run:
+        dic_fix = {}
+        with open(input.vcf) as f:
+                for line in f:
+                        ls = line.strip().split('\t')
+                        dic_fix[ls[5]] = ls[-1].split(':')[3] + ':' + ls[-1].split(':')[5] + \
+                                    ':' + ls[-1].split(':')[6].split('%')[0]
+        with open(input.avi) as f, open(output.avi, 'w') as fi:
+                for line in f:
+                        ls = line.strip().split('\t')
+                        if ls[6] in dic_fix:
+                                fi.write('{}\t{}\t{}\n'.format('\t'.join(ls[:5]),
+                                        '\t'.join(dic_fix[ls[6]].split(':')), ls[6]))
+
+rule annovar_geneanno:
+    input:  avi = '{sample}/Mid-files/08_avinput_left.xls',
+    output: variant_all = '{sample}/Mid-files/09.variant_function',
+    params: annovar = config['annovar']['path'],
+            humandb = config['annovar']['humandb'],
+    log:    #stdout = '{sample}/logs/9_geneanno.stdout',
+            stderr = '{sample}/logs/09_geneanno.stderr',
+    shell:
+            '{params.annovar}/annotate_variation.pl -geneanno '
+            '-dbtype refGene -hgvs -buildver hg38 '
+            '--outfile {wildcards.sample}/Mid-files/09 {input.avi} '
+            '{params.humandb} 2> {log.stderr}'
+
+rule filter_gnomAD:
+    input:  avi = '{sample}/Mid-files/08_avinput_left.xls',
+            variant_all = '{sample}/Mid-files/09.variant_function'
+    output: dropped = '{sample}/Mid-files/09.hg38_gnomad_exome_dropped'
+    params: annovar = config['annovar']['path'],
+            humandb = config['annovar']['humandb'],
+    log:    #stdout = '{sample}/logs/9_filter_gnomAD.stdout',
+            stderr = '{sample}/logs/09_filter_gnomAD.stderr',
+    threads:config['annovar']['threads']
+    shell:
+            '{params.annovar}/annotate_variation.pl -filter '
+            '-dbtype gnomad_exome --thread {threads} '
+            '-buildver hg38 -out {wildcards.sample}/Mid-files/09 '
+            '{input.avi} {params.humandb} '
+            '2> {log.stderr}'
+
+rule filter_clinvar:
+    input:  avi = '{sample}/Mid-files/08_avinput_left.xls',
+            dropped = '{sample}/Mid-files/09.hg38_gnomad_exome_dropped'
+    output: dropped = '{sample}/Mid-files/09.hg38_clinvar_dropped'
+    params: annovar = config['annovar']['path'],
+            humandb = config['annovar']['humandb'],
+    log:    #stdout = '{sample}/logs/9_filter_clinvar.stdout',
+            stderr = '{sample}/logs/09_filter_clinvar.stderr',
+    threads:config['annovar']['threads']
+    shell:
+            '{params.annovar}/annotate_variation.pl -filter '
+            '-dbtype clinvar --thread {threads} '
+            '-buildver hg38 -out {wildcards.sample}/Mid-files/09 '
+            '{input.avi} {params.humandb} '
+            '2> {log.stderr}'
+
+rule filter_cosmic:
+    input:  avi = '{sample}/Mid-files/08_avinput_left.xls',
+            dropped = '{sample}/Mid-files/09.hg38_clinvar_dropped'
+    output: dropped = '{sample}/Mid-files/09.hg38_cosmicTier12_dropped'
+    params: annovar = config['annovar']['path'],
+            humandb = config['annovar']['humandb'],
+    log:    #stdout = '{sample}/logs/9_filter_clinvar.stdout',
+            stderr = '{sample}/logs/09_filter_cosmic.stderr',
+    threads:config['annovar']['threads']
+    shell:
+            '{params.annovar}/annotate_variation.pl -filter '
+            '-dbtype cosmicTier12 --thread {threads} '
+            '-buildver hg38 -out {wildcards.sample}/Mid-files/09 '
+            '{input.avi} {params.humandb} '
+            '2> {log.stderr}'
+
+rule filter_interVar:
+    input:  avi = '{sample}/Mid-files/08_avinput_left.xls',
+            dropped = '{sample}/Mid-files/09.hg38_cosmicTier12_dropped'
+    output: dropped = '{sample}/Mid-files/09.hg38_intervar_dropped'
+    params: annovar = config['annovar']['path'],
+            humandb = config['annovar']['humandb'],
+    log:    #stdout = '{sample}/logs/9_filter_clinvar.stdout',
+            stderr = '{sample}/logs/9_filter_intervar.stderr',
+    threads:config['samtools']['threads']
+    shell:
+            '{params.annovar}/annotate_variation.pl -filter '
+            '-dbtype intervar --thread {threads} '
+            '-buildver hg38 -out {wildcards.sample}/Mid-files/09 '
+            '{input.avi} {params.humandb} '
+            '2> {log.stderr}'
+
+rule filter_oncokb:
+    input:  avi = '{sample}/Mid-files/08_avinput_left.xls',
+            dropped = '{sample}/Mid-files/09.hg38_intervar_dropped'
+    output: dropped = '{sample}/Mid-files/09.hg38_oncokb_dropped'
+    params: annovar = config['annovar']['path'],
+            humandb = config['annovar']['humandb'],
+    log:    #stdout = '{sample}/logs/9_filter_clinvar.stdout',
+            stderr = '{sample}/logs/9_filter_oncokb.stderr',
+    threads:config['samtools']['threads']
+    shell:
+            '{params.annovar}/annotate_variation.pl -filter '
+            '-dbtype oncokb --thread {threads} '
+            '-buildver hg38 -out {wildcards.sample}/Mid-files/09 '
+            '{input.avi} {params.humandb} '
+            '2> {log.stderr}'
+
+rule merge_all_annotation:
+    input:  #oncokb_right = '{sample}/8_target_oncokb.maf',
+            snpEff_right = '{sample}/Mid-files/07_variant_snpeff.vcf',
+            oncokb = '{sample}/Mid-files/09.hg38_oncokb_dropped',
+            fix_avi = '{sample}/Mid-files/08_avinput_fix.xls'
+    output: xls = '{sample}/{sample}_SNV_Indels_total.xls'
+    params: python3 = config['python3'],
+            script = config['scripts'],
+            oncokb_tsv = config['docs'] + '/cancerGeneList.tsv',
+            hotspot = config['docs'] + '/hotspots_twoColumns.bed',
+    shell:
+            '{params.python3} {params.script}/merge_annotations.py '
+            '-oncokb_tsv {params.oncokb_tsv} -hotspots {params.hotspot} '
+            '-outdir {wildcards.sample}/Mid-files -fq-prefix {wildcards.sample}\n'
+            'rm -f {wildcards.sample}/Mid-files/*_filtered '
+            '{wildcards.sample}/Mid-files/09.log {wildcards.sample}/Mid-files/07_variant_sh* '
+            '{wildcards.sample}/Mid-files/07_variant_left.vcf '
+            '{wildcards.sample}/Mid-files/07_variant_right.vcf '
+            '{wildcards.sample}/Mid-files/08_avinput_left.xls '
+            '{wildcards.sample}/Mid-files/08_avinput_right.xls '
+
+rule snv_indels_QC:
+    input:  xls = '{sample}/{sample}_SNV_Indels_total.xls'
+    output: xls = '{sample}/{sample}_SNV_Indels_filter.xls'
+    params: python3 = config['python3'],
+            script = config['scripts'],
+            sample_type = config['sample-type']
+    run:
+        if params.sample_type == 'cfDNA':
+                shell('{params.python3} {params.script}/variant_QC_filter.py '
+                '-snvIndels {input.xls} -depth 500 -alt 5 -frequency 0.5 '
+                '-out {output.xls}')
+        else:
+                shell('{params.python3} {params.script}/variant_QC_filter.py '
+                '-snvIndels {input.xls} -depth 300 -alt 5 -frequency 1 '
+                '-out {output.xls}') 

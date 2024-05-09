@@ -1,0 +1,6 @@
+########## Database absolute path #########
+Hg38_Fasta_Path=/biotron/Rawdata/Database/fasta/hg38_UCSC/hg38.fasta
+Bwa_Index_Path=/biotron/Rawdata/Database/index/BWAindex_hg38/hg38
+Bismark_Index_Path=/biotron/Rawdata/Database/index/ForMethylate_hg38/Bismark_All_CtoTandGtoA
+Fusion_data_library=/biotron/Application/WorkStation/limengzheng/ztemp_outd/test_for_docker/AtomSeqToolsDatabase/Fusion_library
+Variant_library=/biotron/Application/WorkStation/limengzheng/ztemp_outd/test_for_docker/AtomSeqToolsDatabase/Variant_library
