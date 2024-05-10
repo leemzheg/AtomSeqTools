@@ -186,13 +186,17 @@ def FastqDispose(fqdir, sample_name):
             sample_info[sample]["prefix"] = sample
             sample_info[sample]["R1_suffix"] = suffix
         else:
-            print(f"rawdata目录中{sample}样本名有重复，请检查")
+            print(
+                f"The {sample} sample name in the rawdata directory is duplicated, please check"
+            )
             continue
     for fq in glob.glob(f"{fqdir}/*_*2.f*q.gz"):
         sample = fq.split("/")[-1].split("_")[0]
         suffix = "_" + "_".join(fq.split("/")[-1].split("_")[1:])
         if sample not in sample_info:
-            print(f"rawdata目录中{sample}只有fq2没有fq1，请检查")
+            print(
+                f"In the rawdata directory, {sample} only has fq2 but not fq1. Please check"
+            )
             exit()
         else:
             sample_info[sample]["R2_suffix"] = suffix
