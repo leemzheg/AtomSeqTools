@@ -37,6 +37,9 @@ def func(image, fasta):
     )
     # print(cmd)
     os.system(cmd)
+    cmd = f"singularity exec -B {outd} {image} samtools faidx {fasta}"
+    # print(cmd)
+    os.system(cmd)
     bwa_dir = Path(f"{outd}/Bwa_index")
     if not bwa_dir.exists():
         bwa_dir.mkdir(parents=True)
