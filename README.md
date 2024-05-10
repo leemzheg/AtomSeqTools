@@ -2,7 +2,7 @@
 Run AtomSeq Target Pipeline Toolkit
 
 ## Requirements
-- At least 16 cores CPU and 40G memory
+- At least 16 cores CPU and 40G memory, and only analyse for GRCh38/hg38
 - Singularity has been installed, [singularity user guide](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html#quick-installation-steps) 
 - AtomSeqTools's database has been downloaded
 - AtomSeqTools's image has been downloaded, command:
@@ -12,12 +12,15 @@ singularity build AtomSeqTools_image_v2.8.sif docker://leemzheng/atomseqtools:v2
 - Need a config file, fill it out like this:
 ```
 Hg38_Fasta_Path=/PATH/to/GRCh38/hg38.fasta
-Bwa_Index_Path=/PATH/to/BWA_index/hg38
-Bismark_Index_Path=/PATH/to/GRCh38/
-Fusion_data_library=/PATH/to/fusion_database_dir
-Variant_library=/PATH/to/variant_database_dir
+Fusion_data_library=/PATH/to/AtomSeqToolsDatabase/Fusion_library
+Variant_library=/PATH/to/AtomSeqToolsDatabase/Variant_library
 ```
-Note: perpare bismark hg38 index, see [User Guide](https://felixkrueger.github.io/Bismark/bismark/genome_preparation/)
+- Before using AtomSeqTools for the first time, you need to establish hg38 alignment index using the command line:
+```
+python3 bin/make_index.py \
+-image atomSeqTools_images_v2.8.sif \
+-fasta /PATH/to/GRCh38/hg38.fasta
+```
 
 ## Mode one(call variant or cnv or msi):
 
