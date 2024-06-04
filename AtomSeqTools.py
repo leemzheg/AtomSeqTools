@@ -309,7 +309,7 @@ def ParameterCombine(
     autoRemove,
 ):
     if variantCall or cnvCall or msiCall:
-        print("Run variant preprocessing ... ...")
+        print("Run preprocessing ... ...")
         if variantCall:
             cmd = (
                 f"singularity exec -B {mount_paras} {image} "
@@ -317,7 +317,7 @@ def ParameterCombine(
                 f"--configfile {outd}/AtomSeq_config.yaml --cores {threads} --rerun-incomplete "
                 f"-d {outd} -q progress --use-conda --printshellcmds"
             )
-            # print(f"   {cmd}")
+            print(f"   {cmd}")
             os.system(cmd)
             for sample in sample_dic.keys():
                 with open(f"{outd}/{sample}/Sample_config.yaml", "w") as fi:
@@ -340,7 +340,7 @@ def ParameterCombine(
                 f"--configfile {outd}/AtomSeq_config.yaml --cores {threads} --rerun-incomplete "
                 f"-d {outd} -q progress --use-conda --printshellcmds"
             )
-            # print(f"   {cmd}")
+            print(f"   {cmd}")
             os.system(cmd)
             for sample in sample_dic.keys():
                 with open(f"{outd}/{sample}/Sample_config.yaml", "w") as fi:
@@ -363,7 +363,7 @@ def ParameterCombine(
                 f"--configfile {outd}/AtomSeq_config.yaml --cores {threads} --rerun-incomplete "
                 f"-d {outd} -q progress --use-conda --printshellcmds"
             )
-            # print(f"   {cmd}")
+            print(f"   {cmd}")
             os.system(cmd)
             for sample in sample_dic.keys():
                 with open(f"{outd}/{sample}/Sample_config.yaml", "w") as fi:
@@ -387,6 +387,7 @@ def ParameterCombine(
             f"--configfile {outd}/AtomSeq_config.yaml --cores {threads} --rerun-incomplete "
             f"-d {outd} -q progress --use-conda --printshellcmds"
         )
+        print(f"   {cmd}")
         os.system(cmd)
         for sample in sample_dic.keys():
             with open(f"{outd}/{sample}/Sample_config.yaml", "w") as fi:
@@ -422,7 +423,7 @@ def ParameterCombine(
                 f"--min-fusion-frequency 0.01 --min-primer-depth 50 --supporting-reads {supportRead} "
                 f"--fastq-prefix {' '.join(fq_lis)} --data-size {dataSize}"
             )
-        # print(f"   {cmd}")
+        print(f"   {cmd}")
         os.system(cmd)
 
 
