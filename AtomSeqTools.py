@@ -635,12 +635,15 @@ def variant_1to5(outd, dic, sample, mount_paras):
     cmd = (
         f"singularity exec -B {mount_paras} {dic['image']} "
         f"samtools view -bh -f 3 -@ {dic['samtools']['threads']} "
-        f"{outd}/Mid-files/03_temp.sam|samtools sort - "
-        f"-@ {dic['samtools']['threads']}  "
-        f"-o {outd}/Mid-files/03_bwa_sort.bam 2> {outd}/logs/03_bwa_sort.stderr "
+        f"{outd}/Mid-files/03_temp.sam -o {outd}/Mid-files/03_bwa_filter.bam "
     )
     # print(cmd)
     os.system(cmd)
+    os.system(
+        f"singularity exec -B {mount_paras} {dic['image']} "
+        f"samtools sort -@ {dic['samtools']['threads']} {outd}/Mid-files/03_bwa_filter.bam "
+        f"-o {outd}/Mid-files/03_bwa_sort.bam 2> {outd}/logs/03_bwa_sort.stderr "
+    )
     os.system(
         f"singularity exec -B {mount_paras} {dic['image']} "
         f"samtools index {outd}/Mid-files/03_bwa_sort.bam "
@@ -769,7 +772,7 @@ def variant_cnv(outd, dic, sample, mount_paras):
     )
     os.system(
         f"singularity exec -B {mount_paras} {dic['image']} "
-        f"awk 'NR==1;NR>1&&$2>3.5&&$3>3.5||NR>1&&$2<0.6&&$3<0.6' {outd}/zz.cnv.xls "
+        f"awk 'NR==1;NR>1&&$2>3.5&&$3>3.5|NR>1&&$2<0.6&&$3<0.6' {outd}/zz.cnv.xls "
         f"> {outd}/{sample}_CNV_summary.xls"
     )
 
