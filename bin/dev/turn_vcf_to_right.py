@@ -6,7 +6,6 @@
 
 import sys, re, os
 import argparse, textwrap
-import pandas as pd
 
 
 def argparse_line():

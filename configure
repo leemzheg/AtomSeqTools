@@ -1,4 +1,4 @@
 ########## Database absolute path #########
 Hg38_Fasta_Path=/biotron/Application/WorkStation/limengzheng/database/fasta_and_index/hg38_UCSC/hg38.fasta
-Fusion_data_library=/biotron/Application/WorkStation/limengzheng/ztemp_outd/test_for_docker/AtomSeqToolsDatabase/Fusion_library
 Variant_library=/biotron/Application/WorkStation/limengzheng/ztemp_outd/test_for_docker/AtomSeqToolsDatabase/Variant_library
+Fusion_data_library=/biotron/Application/WorkStation/limengzheng/ztemp_outd/test_for_docker/AtomSeqToolsDatabase/Fusion_library

@@ -76,10 +76,10 @@ def func(variantXls, depth, alt, freq, outf):
                 continue
             fi.write(line)
 
-    time_end = datetime.datetime.now()
-    print(
-        f"ONE variant QC filter used: \033[33m{round((time_end-time_start).total_seconds()/60, 2)}\033[0m min"
-    )
+    # time_end = datetime.datetime.now()
+    # print(
+    #     f"ONE variant QC filter used: \033[33m{round((time_end-time_start).total_seconds()/60, 2)}\033[0m min"
+    # )
 
 
 def main():

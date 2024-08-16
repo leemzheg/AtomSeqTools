@@ -7,18 +7,18 @@ Run AtomSeq Target Pipeline Toolkit
 - Downloaded AtomSeqToolsDatabase
 - Downloadeded AtomSeqTools's image, command:
 ```
-singularity build AtomSeqTools_image_v2.8.sif docker://leemzheng/atomseqtools:v2.8
+singularity build AtomSeqTools_image_v2.8.2.sif docker://leemzheng/atomseqtools:v2.8.2
 ```
 - Need a config file, fill it out like this:
 ```
 Hg38_Fasta_Path=/PATH/to/GRCh38/hg38.fasta
-Fusion_data_library=/PATH/to/AtomSeqToolsDatabase/Fusion_library
 Variant_library=/PATH/to/AtomSeqToolsDatabase/Variant_library
+Fusion_data_library=/PATH/to/AtomSeqToolsDatabase/Fusion_library
 ```
 - Before using AtomSeqTools for the first time, you need to establish hg38 alignment index using the command line:
 ```
 python3 bin/make_index.py \
--image atomSeqTools_images_v2.8.sif \
+-image atomSeqTools_images_v2.8.2.sif \
 -fasta /PATH/to/GRCh38/hg38.fasta
 ```
 
@@ -27,7 +27,7 @@ python3 bin/make_index.py \
 ### 1) only variant calling:
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.8.sif \
+-image atomSeqTools_images_v2.8.2.sif \
 -fq-dir /PATH/to/Rawdata \
 -fq-prefix 0320-ZCZ-T27-A1 0327-ZLY-T27-A1 \
 -outdir /PATH/to/Output \
@@ -38,7 +38,7 @@ python3 AtomSeqTools.py \
 ### 2) only cnv analysis:
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.8.sif \
+-image atomSeqTools_images_v2.8.2.sif \
 -fq-dir /PATH/to/Rawdata \
 -fq-prefix 0320-ZCZ-T27-A1 0327-ZLY-T27-A1 \
 -outdir /PATH/to/Output \
@@ -49,7 +49,7 @@ python3 AtomSeqTools.py \
 ### 3) only msi analysis:
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.8.sif \
+-image atomSeqTools_images_v2.8.2.sif \
 -fq-dir /PATH/to/Rawdata \
 -fq-prefix 0320-ZCZ-T27-A1 0327-ZLY-T27-A1 \
 -outdir /PATH/to/Output \
@@ -60,7 +60,7 @@ python3 AtomSeqTools.py \
 ### 4) variant, cnv and msi can be used in combination:
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.8.sif \
+-image atomSeqTools_images_v2.8.2.sif \
 -fq-dir /PATH/to/Rawdata \
 -fq-prefix 0320-ZCZ-T27-A1 0327-ZLY-T27-A1 \
 -outdir /PATH/to/Output \
@@ -71,7 +71,7 @@ python3 AtomSeqTools.py \
 ## Mode two(methylation analysis):
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.8.sif \
+-image atomSeqTools_images_v2.8.2.sif \
 -fq-dir /PATH/to/Rawdata  \
 -fq-prefix 0408-V17-2-M5-A1 0408-V17-5-M5-A1 \
 -outdir /PATH/to/Output \
@@ -82,7 +82,7 @@ python3 AtomSeqTools.py \
 ## Mode three(fusion analysis):
 ```
 python3 AtomSeqTools.py \
--image atomSeqTools_images_v2.8.sif \
+-image atomSeqTools_images_v2.8.2.sif \
 -fq-dir /PATH/to/Rawdata \
 -fq-prefix 0320-ZJQ-T12-A1 \
 -outdir /PATH/to/Output \
@@ -90,14 +90,25 @@ python3 AtomSeqTools.py \
 -bed T12_RNA_15gene_Primer_V2.0.bed \
 -fusion
 ```
+## Mode four(baseline creator):
+```
+python3 AtomSeqTools.py \
+-image atomSeqTools_images_v2.8.2.sif \
+-fq-dir /PATH/to/Rawdata \
+-fq-prefix 0711-LLN-T31-A1 0626-LXC-T31-A1 0705-ZYX-T31-A1 0809-MZS-T31-A1 0720-ZCH-T31-A1 \
+-outdir /PATH/to/Output \
+-config configure_file \
+-bed T31_DNA_143gene_Primer_V2.0.bed \
+-baselineCreator -baseline-type CNV -baseline-name T31_CNV.baseline
+```
 
 ## Help Message:
 ```
-python3 AtomSeqTools.py -h
-usage: AtomSeqTools.py [-h] -image IMAGE -fq-dir PATH -fq-prefix STR [STR ...] -outdir PATH -config STR -bed STR
-                       [-variant] [-sample-type STR] [-cnv] [-cnv-baseline STR] [-msi] [-msi-baseline STR]
-                       [-meth] [-fusion] [-threads INT] [-data-to-analyse FLOAT] [-supporting-reads INT]
-                       [-auto-remove]
+python3 AtomSeqTools.py -h           
+usage: AtomSeqTools.py [-h] -image IMAGE -fq-dir PATH -fq-prefix STR [STR ...] -outdir PATH -config STR -bed STR [-variant]
+                       [-sample-type STR] [-cnv] [-cnv-baseline STR] [-msi] [-msi-baseline STR] [-meth] [-fusion]
+                       [-baselineCreator] [-baseline-type STR] [-baseline-name STR] [-threads INT] [-data-to-analyse FLOAT]
+                       [-supporting-reads INT] [-auto-remove]
 
 Run AtomSeq Target Pipeline Toolkit
 
@@ -108,7 +119,8 @@ Required arguments:
   -image IMAGE              Singularity image [*.sif]
   -fq-dir PATH              The path to directory of raw fastq
   -fq-prefix STR [STR ...]
-                            Specify fastq prefix to be analyzed(can be many, delimited by space)
+                            Specify fastq prefix to be analyzed (can be many, delimited by space.
+                            If baselineCreator mode, the more healthy samples, the better)
                             [eg: '0101-XXX-M3-A1_1.fq.gz' prefix is '0101-XXX-M3-A1']
   -outdir PATH              The path to directory of all output files
   -config STR               Config file. Some parameters and paths that need to be set
@@ -116,7 +128,7 @@ Required arguments:
 
 Variant options:
   -variant                  Enable pipeline to call variant
-  -sample-type STR          If call variant, it`s necessary to select sample type. Possible values: {cfDNA, Tissue}
+  -sample-type STR          If call variant, it`s necessary to select sample type. Possible values:{cfDNA, Tissue}
   -cnv                      Enable pipeline to call cnv (cfDNA can`t call cnv)
   -cnv-baseline STR         If call cnv, it`s best to give a cnv baseline, but can be None. [default: None]
   -msi                      Enable pipeline to call msi (cfDNA can`t call msi)
@@ -126,10 +138,16 @@ Methylation options:
   -meth                     Enable pipeline to analyse methylation data
 
 Fusion options:
-  -fusion                   Enable pipeline to analyse RNA fusion data
+  -fusion                   Enable pipeline to analyse RNA fusion data(When running this mode, 40G of 
+                            computer memory is required, otherwise it will crash and interrupt)
+
+BaselineCreator options:
+  -baselineCreator          Enable pipeline to make a CNV/MSI baseline file
+  -baseline-type STR        Select output baseline type. Possible values:{CNV, MSI}
+  -baseline-name STR        The name of the CNV/MSI baseline [default: XXXBaseline_XXXpanel_AtomSeq.XXXgene]
 
 Other options:
-  -threads INT              Number of threads to use [default:12]
+  -threads INT              Number of threads to use [default:8]
   -data-to-analyse FLOAT
                             Specify how many data size(G) to be analysed 
                             [default:0] [0 means analyse all fastq data]

@@ -106,7 +106,7 @@ def right_annotate(outdir, oncokb_dic, right_dic):
     #         if ls[102] in right_dic.keys():
     #             right_dic[ls[102]]["oncokb"] = ls[117] + ":" + ls[119]
     # snpEff dictory
-    with open(f"{outdir}/07_variant_snpeff.vcf") as f:
+    with open(f"{outdir}/07_variant.snpeff.vcf") as f:
         for line in f:
             ls = line.strip().split("\t")
             if re.match(r"#", line) or ls[2] not in right_dic.keys():
