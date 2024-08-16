@@ -772,7 +772,7 @@ def variant_cnv(outd, dic, sample, mount_paras):
     )
     os.system(
         f"singularity exec -B {mount_paras} {dic['image']} "
-        f"awk 'NR==1;NR>1&&$2>3.5&&$3>3.5|NR>1&&$2<0.6&&$3<0.6' {outd}/zz.cnv.xls "
+        f"awk 'NR==1;NR>1&&$2>3.5&&$3>3.5||NR>1&&$2<0.6&&$3<0.6' {outd}/zz.cnv.xls "
         f"> {outd}/{sample}_CNV_summary.xls"
     )
 
