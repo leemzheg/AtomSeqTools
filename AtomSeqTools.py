@@ -812,7 +812,7 @@ def variant_6to11(outd, dic, sample, mount_paras):
         f"singularity exec -B {mount_paras} {dic['image']} "
         f"samtools sort -@ {dic['samtools']['threads']} "
         f"{outd}/Mid-files/06_trimPrimer_temp.bam > {outd}/Mid-files/06_trimPrimer.bam "
-        f"1> {outd}/logs/06_trimPrimer.stdout 2> {outd}/logs/06_trimPrimer.stderr "
+        f"2> {outd}/logs/06_trimPrimer.stderr "
     )
     # print(cmd)
     os.system(cmd)
